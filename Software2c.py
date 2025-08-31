@@ -1,47 +1,82 @@
 import turtle
+import math
 
-def draw_fractal_edge(t, length, depth):
-    # Draw one edge of the fractal using recursion.
+def draw_fractal_edge(t, length, depth, max_depth):
+    """
+    Recursively draw one edge of the fractal.
+    Adds color gradient based on depth.
+    """
+    # Gradient color: purple -> blue
+    shade = int(255 * (depth / max_depth)) if max_depth > 0 else 0
+    t.pencolor((shade, 0, 255 - shade))
+
     if depth == 0:
-        t.forward(length)                 # Base case: just draw a straight segment.
+        t.forward(length)  # Base case
     else:
-        segment = length / 3              # Each edge becomes 4 segments, each 1/3 long.
+        segment = length / 3
+        draw_fractal_edge(t, segment, depth - 1, max_depth)
+        t.left(60)
+        draw_fractal_edge(t, segment, depth - 1, max_depth)
+        t.right(120)
+        draw_fractal_edge(t, segment, depth - 1, max_depth)
+        t.left(60)
+        draw_fractal_edge(t, segment, depth - 1, max_depth)
 
-        # Replace the single edge with four smaller edges + turns:
-        draw_fractal_edge(t, segment, depth - 1)
-        t.left(60)                        # build the triangular "dent"
-        draw_fractal_edge(t, segment, depth - 1)
-        t.right(120)                      # turn through the tip of the triangle
-        draw_fractal_edge(t, segment, depth - 1)
-        t.left(60)                        # re-align with original heading
-        draw_fractal_edge(t, segment, depth - 1)
+def move_to_start(t, sides, side_length):
+    """
+    Moves the turtle so that the fractal polygon is centered in the screen.
+    Uses polygon geometry to calculate radius.
+    """
+    # Distance from polygon center to a vertex (circumradius)
+    radius = side_length / (2 * math.sin(math.pi / sides))
+
+    t.penup()
+    t.setheading(90)         # Face upwards
+    t.backward(radius)       # Move down by radius
+    t.right(90)              # Face east again
+    t.pendown()
 
 def draw_polygon_fractal(sides, side_length, depth, inward=True):
+    """
+    Draws a centered fractal polygon (no fill).
+    """
     t = turtle.Turtle()
-    t.speed(0)                            # fastest drawing
+    t.speed(0)
     t.hideturtle()
-    turtle.tracer(False)                  # instant draw (turn on later with tracer(True))
-    turtle.bgcolor("white")
-    t.color("black")
 
-    # For a regular polygon, the exterior turn between sides is 360 / sides.
+    # Enable RGB colors
+    turtle.colormode(255)
+    turtle.bgcolor("white")
+    turtle.tracer(False)
+
+    # Center polygon
+    move_to_start(t, sides, side_length)
+
     angle = 360 / sides
 
-    # If we want the triangle "dent" to point inward, we must traverse the polygon CCW.
-    # (Interior stays on the turtle's left.) So we turn LEFT between sides.
-    # If you prefer outward bumps, set inward=False to turn RIGHT instead.
     for _ in range(sides):
-        draw_fractal_edge(t, side_length, depth)
+        draw_fractal_edge(t, side_length, depth, depth)
         if inward:
-            t.left(angle)                 # counter-clockwise polygon => dents point inward
+            t.left(angle)
         else:
-            t.right(angle)                # clockwise polygon => bumps point outward
+            t.right(angle)
 
     turtle.tracer(True)
+
+    # Save result
+    ts = turtle.getcanvas()
+    ts.postscript(file="fractal_output.eps")
+
     turtle.done()
 
 if __name__ == "__main__":
-    sides = int(input("Enter the number of sides: "))
+    # Input with validation
+    while True:
+        sides = int(input("Enter the number of sides (≥ 3): "))
+        if sides >= 3:
+            break
+        print("❌ A polygon needs at least 3 sides.")
+
     side_length = int(input("Enter the side length: "))
     depth = int(input("Enter the recursion depth: "))
 
