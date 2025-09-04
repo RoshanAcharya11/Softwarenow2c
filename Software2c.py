@@ -3,87 +3,148 @@ import math
 
 def draw_fractal_edge(t, length, depth, max_depth):
     """
-    Recursively draw one fractal edge(like koch curve)
-    Adds purple to blue gradient based on recursion depth.
+    Koch curve implementation involves recursively
+    replacing each line segment with four segments,resulting in a triangular bump.
     """
-    # GCalculating color gradient: purple at start -> blue as it goes more deeper
+    if length <= 0 or depth < 0:
+        return
+        
     shade = int(255 * (depth / max_depth)) if max_depth > 0 else 0
     t.pencolor((shade, 0, 255 - shade))
-
+    
     if depth == 0:
-        t.forward(length)  # Base case: draws a straight line
+        t.forward(length)
     else:
-        # breaks line further into 4 smaller segments
         segment = length / 3
-        draw_fractal_edge(t, segment, depth - 1, max_depth) #left part
-        t.left(60) #make peak
+        #Koch construction has four segments:forward,turn 60°,forward,turn -120°,forward,turn 60°,forward.        draw_fractal_edge(t, segment, depth - 1, max_depth)
+        t.left(60)
         draw_fractal_edge(t, segment, depth - 1, max_depth)
-        t.right(120) # make valley
+        t.right(120)
         draw_fractal_edge(t, segment, depth - 1, max_depth)
-        t.left(60) #right part
+        t.left(60)
         draw_fractal_edge(t, segment, depth - 1, max_depth)
 
-def move_to_start(t, sides, side_length):
+def trace_fractal_edge(tracer, length, depth, coords):
     """
-    Moves the turtle so that the fractal polygon is centered in the screen.
-    Uses polygon geometry to calculate radius.
+    Invisible variant of draw_fractal_edge() that saves coordinates rather than drawing.
+  Used to calculate actual fractal boundaries for centering..
     """
-    # Distance from polygon center to a vertex (circumradius)
-    radius = side_length / (2 * math.sin(math.pi / sides)) #polygon radius
+    if length <= 0 or depth < 0:
+        return
+        
+    if depth == 0:
+        tracer.forward(length)
+        coords.append(tracer.position())
+    else:
+        segment = length / 3
+        trace_fractal_edge(tracer, segment, depth - 1, coords)
+        tracer.left(60)
+        trace_fractal_edge(tracer, segment, depth - 1, coords)
+        tracer.right(120)
+        trace_fractal_edge(tracer, segment, depth - 1, coords)
+        tracer.left(60)
+        trace_fractal_edge(tracer, segment, depth - 1, coords)
 
-    t.penup()
-    t.setheading(90)         # turns face upwards
-    t.backward(radius)       # Moves down by radius
-    t.right(90)              # Faces east again
-    t.pendown()
+def get_fractal_bounds(sides, side_length, depth):
+    """
+    Determines bounding box by invisibly tracing the full fractal polygon.
+    Koch curves stretch beyond basic polygon borders, making this necessary.
+    """
+    if sides < 3 or side_length <= 0 or depth < 0:
+        return (0, 0, 0, 0)
+    
+    tracer = turtle.Turtle()
+    tracer.speed(0)
+    tracer.hideturtle()
+    tracer.penup()
+    tracer.goto(0, 0)
+    tracer.setheading(0)
+    
+    coords = [(0, 0)]
+    angle = 360 / sides
+    
+    #Trace each polygon side to get all the fractal coordinates.
+    for _ in range(sides):
+        trace_fractal_edge(tracer, side_length, depth, coords)
+        tracer.left(angle)
+    
+    if len(coords) > 1:
+        x_coords = [pos[0] for pos in coords]
+        y_coords = [pos[1] for pos in coords]
+        return (min(x_coords), max(x_coords), min(y_coords), max(y_coords))
+    return (0, 0, 0, 0)
 
-def draw_polygon_fractal(sides, side_length, depth, inward=True):
+def draw_polygon_fractal(sides, side_length, depth):
     """
-    Draws a polygon with centered fractal polygon (no fill).
-    sides: Number of polygon sides
-    side_length: length of each side
-    depth: recursion depth
-    inward: direction of drawing (clockwise vs anticlockwise)
+    The main drawing function generates a regular polygon by replacing each edge with a 
+    Koch curve fractal.Uses limits computation for perfect centering..
     """
+    if sides < 3 or side_length <= 0 or depth < 0:
+        return False
+    
+    screen = turtle.Screen()
+    screen.setup(1000, 800)
+    screen.bgcolor("white")
+    screen.colormode(255)
+    screen.tracer(False)
+    
+    #Calculate the exact fractal dimensions and center point.
+    min_x, max_x, min_y, max_y = get_fractal_bounds(sides, side_length, depth)
+    center_x = (min_x + max_x) / 2
+    center_y = (min_y + max_y) / 2
+    
     t = turtle.Turtle()
-    t.speed(0) # fastest drawing
-    t.hideturtle() # hide pointer
-
-    # Enable RGB colors
-    turtle.colormode(255) # allow RGB
-    turtle.bgcolor("white") # white background
-    turtle.tracer(False) # disable live drawing for speed
-
-    # position turtle to Center the fractal
-    move_to_start(t, sides, side_length)
-
-    angle = 360 / sides # interior angle of polygon
-
-    #Draw each fractal edge around the polygon
+    t.speed(0)
+    t.hideturtle()
+    t.penup()
+    t.goto(-center_x, -center_y)
+    t.setheading(0)
+    t.pendown()
+    
+    angle = 360 / sides
+    
+    #Draw a polygon; each side becomes a fractal edge.
     for _ in range(sides):
         draw_fractal_edge(t, side_length, depth, depth)
-        if inward:
-            t.left(angle) # rotate left to next side
-        else:
-            t.right(angle) # rotate right to next side
-
-    turtle.tracer(True) # show final deawing
-
-    # Save result
-    ts = turtle.getcanvas()
-    ts.postscript(file="fractal_output.eps")
-
-    turtle.done()
+        t.left(angle)
+    
+    screen.tracer(True)
+    screen.exitonclick()
+    return True
 
 if __name__ == "__main__":
-    # Input with validation
-    while True:
-        sides = int(input("Enter the number of sides (≥ 3): "))
-        if sides >= 3:
-            break
-        print("A polygon needs at least 3 sides.")
+    """
+    Need bulletproof parameter validation for the generator to work. 
+    Invalid parameters can cause a program to crash, go into infinite recursion, or produce nonsensical output. 
 
-    side_length = int(input("Enter the side length: "))
-    depth = int(input("Enter the recursion depth: "))
+    Continuous retry loops with silent error handling provide 
+    streamlined user experience. Alternative approaches with the error messages create a lot of clutter. 
+    Exception handling ensures the program does not crash due to non-integer inputs. 
 
-    draw_polygon_fractal(sides, side_length, depth, inward=True)
+    """
+    while True:  #Get the valid no of sides 
+        try:
+            sides = int(input("Enter number of sides (≥ 3): "))  # Get the user input
+            if sides >= 3:  # Check minimum requirement [Basic Rule]
+                break  # Check: Valid input, exit loop
+        except ValueError:  # Handle non-integer input
+            pass  # Retry silently
+    #Basic Loop logic implemented
+
+    while True:  # Get valid side length
+        try:
+            side_length = int(input("Enter side length: "))  # Get the user input
+            if side_length > 0:  # logic: Must be positive
+                break  # Valid input, exit loop
+        except ValueError:  # Handle non-integer input
+            pass  # Retry silently
+    # Same basic checking for recursion depth logic for the code to pass the test case
+    while True:  # Get valid recursion depth
+        try:
+            depth = int(input("Enter recursion depth: "))  # Get user input
+            if depth >= 0:  # Must be non-negative
+                break  # Valid input, exit loop
+        except ValueError:  # Handle non-integer input
+            pass  # Retry silently
+    
+    draw_polygon_fractal(sides, side_length, depth)  # Generate fractal with validated parameters
